@@ -1,0 +1,68 @@
+service: webapp
+app: intellistyle-app
+
+plugins:
+  - serverless-s3-sync
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  region: us-east-1
+  profile: personal
+  deploymentBucket:
+    name: ys.serverless.deploys
+    blockPublicAccess: true
+
+custom:
+  Stage: ${opt:stage, 'dev'}
+  Service: ${self:service}
+  DeletionPolicy: Delete
+  BucketName: ys.intellistyle.webapp
+
+  s3Sync:
+    - bucketName: ${self:custom.BucketName}
+      localDir: ../build
+      followSymlinks: true
+      deleteRemoved: true
+
+resources:
+  Resources:
+
+    AppBucket:
+      Type: AWS::S3::Bucket
+      DeletionPolicy: ${self:custom.DeletionPolicy}
+      Properties:
+        AccessControl: PublicRead # if commented, `reload page` doesn't work
+        BucketName: ${self:custom.BucketName}
+        WebsiteConfiguration:
+          IndexDocument: index.html
+#          ErrorDocument: error.html
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+#          RestrictPublicBuckets: true
+        Tags:
+          - Key: 'Name'
+            Value: ${self:app}
+
+    BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: AppBucket
+        PolicyDocument:
+          Statement:
+            - Sid: AllowEveryoneReadOnlyAccess
+              Effect: Allow
+              Action:
+                - 's3:GetObject'
+              Resource:
+                Fn::Join:
+                  - ''
+                  - - 'arn:aws:s3:::'
+                    - Ref: AppBucket
+                    - '/*'
+              Principal: '*'
+      DependsOn:
+        - AppBucket
